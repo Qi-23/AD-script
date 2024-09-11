@@ -721,13 +721,14 @@ BEGIN
 
 
   IF (v_totalFlightHours >= 24) THEN
-    INSERT INTO AirplaneMaintenance VALUES ('AM' || TO_CHAR(airplaneMaintenance_seq.nextval, 'FM0000'), 'Routine Check', TO_CHAR(:NEW.DepartDateTime + (:NEW.FlightDuration/24) + (1/24), 'DD/MM/YYYY HH24:MI:SS'), 1, NULL, NULL, NULL, :NEW.AirplaneID);
+    INSERT INTO AirplaneMaintenance VALUES ('AM' || TO_CHAR(airplaneMaintenance_seq.nextval, 'FM0000'), 
+    'Routine Check', TO_CHAR(:NEW.DepartDateTime + (:NEW.FlightDuration/24) + (1/24), 'DD/MM/YYYY HH24:MI:SS'), 1, 
+     NULL, NULL, NULL, :NEW.AirplaneID);
 
   END IF;
 
 END;
 /
-
 
 
 -- FlightSchedule
