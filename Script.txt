@@ -1,4 +1,4 @@
-ALTER SESSION SET NLS_DATE_FORMAT='DD-MM-YYYY';
+ALTER SESSION SET NLS_DATE_FORMAT='DD/MM/YYYY';
 ALTER SESSION SET NLS_TIMESTAMP_FORMAT = 'DD/MM/YYYY HH24:MI:SS';
 SET LINESIZE 120
 SET PAGESIZE 100
@@ -625,7 +625,6 @@ FOR EACH ROW
 DECLARE
 
 v_maintenanceDateTime AirplaneMaintenance.MaintenanceDateTime%TYPE;
-v_hoursWork AirplaneMaintenance.HoursWork%TYPE;
 v_maintenanceEndDateTime TIMESTAMP;
 v_currentDateTime TIMESTAMP;
 v_duration INTERVAL DAY TO SECOND;
@@ -652,38 +651,27 @@ BEGIN
     IF UPDATING('MaintenanceStatus') THEN
       IF (:NEW.MaintenanceStatus = 'Completed') THEN
 
-        IF UPDATING('MaintenanceDateTime') AND UPDATING ('HoursWork') THEN
+        IF UPDATING('MaintenanceDateTime') THEN
           v_maintenanceDateTime := :NEW.MaintenanceDateTime;
-          v_hoursWork := :NEW.HoursWork;
 
-        ELSIF UPDATING('MaintenanceDateTime') THEN
-          v_maintenanceDateTime := :NEW.MaintenanceDateTime;
-          v_hoursWork := :OLD.HoursWork;
-
-	      ELSE
+        ELSE
           v_maintenanceDateTime := :OLD.MaintenanceDateTime;
-          v_hoursWork := :OLD.HoursWork;
 
         END IF;
 
-        v_maintenanceEndDateTime := fun_getEndDateTime(v_maintenanceDateTime, v_hoursWork);
-            DBMS_OUTPUT.PUT_LINE('maintenance end time : ' || v_maintenanceEndDateTime);
-
-        IF (v_maintenanceDateTime < v_currentDateTime AND v_maintenanceEndDateTime > v_currentDateTime) THEN
+        IF (v_maintenanceDateTime < v_currentDateTime) THEN
           v_duration := v_currentDateTime - v_maintenanceDateTime;
           :NEW.HoursWork := CEIL(EXTRACT(HOUR FROM v_duration) + EXTRACT(MINUTE FROM v_duration) / 60);
-          DBMS_OUTPUT.PUT_LINE('done earlier, duration : ' || v_duration);
-
-        ELSIF (v_maintenanceEndDateTime < v_currentDateTime) THEN
-          v_duration := v_currentDateTime - v_maintenanceDateTime;
-          :NEW.HoursWork := CEIL(EXTRACT(HOUR FROM v_duration) + EXTRACT(MINUTE FROM v_duration) / 60);
-          DBMS_OUTPUT.PUT_LINE('done late, duration : ' || v_duration);
 
         ELSIF (v_maintenanceDateTime > v_currentDateTime) THEN
           RAISE_APPLICATION_ERROR (-20000, 'The maintenance (' || :OLD.MaintenanceID || ') was scheduled on ' || v_maintenanceDateTime || ' and has not been started.');
 
         END IF;
 
+      ELSIF (:NEW.MaintenanceStatus = 'On-going') THEN
+        IF (:OLD.MaintenanceDateTime > v_currentDateTime) THEN
+          :NEW.MaintenanceDateTime := v_currentDateTime;
+        END IF;
       END IF;
 
     END IF;
@@ -716,18 +704,21 @@ BEGIN
   FROM AirplaneMaintenance
   WHERE MaintenanceType = 'Routine Check' AND AirplaneID = :NEW.AirplaneID;
 
-  IF (v_countRoutineCheck > 0) THEN 
-    SELECT SUM(FlightDuration) INTO v_totalFlightHours
-    FROM FlightSchedule
-    WHERE DepartDateTime > (
-      SELECT MAX(MaintenanceDateTime)
-      FROM AirplaneMaintenance
-      WHERE MaintenanceType = 'Routine Check' AND AirplaneID = :NEW.AirplaneID
-    ) AND AirplaneID = :NEW.AirplaneID;
+  -- If previously does not have routine check
+  IF (v_lastMaintenanceDateTime IS NULL) THEN 
+    SELECT DateOfManufacture INTO v_lastMaintenanceDateTime
+    FROM Airplane
+    WHERE AirplaneID = :NEW.AirplaneID;
 
-    v_totalFlightHours := v_totalFlightHours + :NEW.FlightDuration;
-
+    v_lastMaintenanceDateTime := TO_CHAR(v_lastMaintenanceDateTime, 'DD/MM/YYYY HH24:MI:SS');
   END IF;
+
+  SELECT SUM(FlightDuration) INTO v_totalFlightHours
+  FROM FlightSchedule
+  WHERE DepartDateTime > v_lastMaintenanceDateTime AND AirplaneID = :NEW.AirplaneID;
+
+  v_totalFlightHours := v_totalFlightHours + :NEW.FlightDuration;
+
 
   IF (v_totalFlightHours >= 24) THEN
     INSERT INTO AirplaneMaintenance VALUES ('AM' || TO_CHAR(airplaneMaintenance_seq.nextval, 'FM0000'), 'Routine Check', TO_CHAR(:NEW.DepartDateTime + (:NEW.FlightDuration/24) + (1/24), 'DD/MM/YYYY HH24:MI:SS'), 1, NULL, NULL, NULL, :NEW.AirplaneID);
@@ -736,6 +727,7 @@ BEGIN
 
 END;
 /
+
 
 
 -- FlightSchedule
