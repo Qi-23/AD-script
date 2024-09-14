@@ -825,7 +825,7 @@ BEGIN
 END;
 /
 
--- XinJie
+-------- XinJie --------
 -- StaffSchedule (check)
 CREATE OR REPLACE TRIGGER trg_staffSchedule 
 BEFORE INSERT OR UPDATE ON STAFFSCHEDULE
@@ -965,6 +965,51 @@ CASE
         WHERE ItemID = :OLD.ItemID;
 END CASE;
 END;
+/
+
+-------- Janice --------
+
+CREATE OR REPLACE TRIGGER trg_check_overlap_flights
+    FOR INSERT OR UPDATE ON FlightSchedule
+    COMPOUND TRIGGER
+
+    TYPE FlightDetails IS RECORD (
+        AirplaneID FlightSchedule.AirplaneID%TYPE,
+        DepartDateTime FlightSchedule.DepartDateTime%TYPE,
+        ArriveDateTime FlightSchedule.ArriveDateTime%TYPE,
+        FlightScheduleID FlightSchedule.FlightScheduleID%TYPE
+    );
+    TYPE FlightDetailsTable IS TABLE OF FlightDetails;
+
+    v_FlightList FlightDetailsTable := FlightDetailsTable();  
+
+    BEFORE EACH ROW IS
+    BEGIN
+        v_FlightList.EXTEND;
+        v_FlightList(v_FlightList.COUNT).AirplaneID := :NEW.AirplaneID;
+        v_FlightList(v_FlightList.COUNT).DepartDateTime := :NEW.DepartDateTime;
+        v_FlightList(v_FlightList.COUNT).ArriveDateTime := :NEW.ArriveDateTime;
+        v_FlightList(v_FlightList.COUNT).FlightScheduleID := :NEW.FlightScheduleID;
+    END BEFORE EACH ROW;
+
+    AFTER STATEMENT IS
+        v_Count INTEGER;
+    BEGIN
+        FOR i IN 1..v_FlightList.COUNT LOOP
+            SELECT COUNT(*)
+            INTO v_Count
+            FROM FlightSchedule
+            WHERE AirplaneID = v_FlightList(i).AirplaneID
+              AND ((v_FlightList(i).DepartDateTime BETWEEN DepartDateTime AND ArriveDateTime)
+              OR (v_FlightList(i).ArriveDateTime BETWEEN DepartDateTime AND ArriveDateTime))
+              AND FlightScheduleID <> v_FlightList(i).FlightScheduleID;
+
+            IF v_Count > 0 THEN
+                RAISE_APPLICATION_ERROR(-20000, 'Flight overlaps with another flight for the same airplane!');
+            END IF;
+        END LOOP;
+    END AFTER STATEMENT;
+END trg_check_overlap_flights;
 /
 
 -- Member
@@ -3461,7 +3506,7 @@ INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, Ad
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '28/03/2023 16:35:00', NULL, '159.88', '74.84', '3', 'AIR010', 'A0005');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '31/03/2023 18:33:00', NULL, '154.88', '115.08', '5', 'AIR001', 'A0001');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '31/03/2023 20:04:00', NULL, '135.99', '53.07', '6', 'AIR004', 'A0002');
-INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '01/04/2023 00:12:00', NULL, '145.42', '76.85', '7', 'AIR004', 'A0007');
+INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '01/04/2023 20:12:00', NULL, '145.42', '76.85', '7', 'AIR004', 'A0007');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '12/04/2023 17:41:00', NULL, '163.84', '50.65', '4', 'AIR008', 'A0003');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '17/04/2023 14:57:00', NULL, '194.41', '63.44', '6', 'AIR008', 'A0005');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '08/05/2023 18:15:00', NULL, '176.66', '92.84', '7', 'AIR002', 'A0003');
@@ -3481,7 +3526,7 @@ INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, Ad
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '18/08/2023 00:21:00', NULL, '175.01', '104.88', '3', 'AIR003', 'A0006');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '21/08/2023 03:09:00', NULL, '194.42', '59.68', '8', 'AIR007', 'A0009');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '22/08/2023 06:35:00', NULL, '190.88', '103.52', '4', 'AIR001', 'A0010');
-INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '22/08/2023 07:03:00', NULL, '152.79', '80.41', '8', 'AIR001', 'A0002');
+INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '22/08/2023 11:03:00', NULL, '152.79', '80.41', '8', 'AIR001', 'A0002');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '30/08/2023 12:25:00', NULL, '162.38', '62.46', '7', 'AIR005', 'A0009');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '03/09/2023 03:39:00', NULL, '144.3', '59.79', '7', 'AIR009', 'A0002');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '09/09/2023 12:17:00', NULL, '133.19', '60.79', '8', 'AIR009', 'A0005');
@@ -3533,7 +3578,7 @@ INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, Ad
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '27/07/2024 12:52:00', NULL, '133.68', '76.84', '4', 'AIR006', 'A0006');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '04/08/2024 07:36:00', NULL, '152.33', '94.23', '4', 'AIR001', 'A0005');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '10/08/2024 22:28:00', NULL, '181.82', '54.35', '5', 'AIR001', 'A0002');
-INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '11/09/2024 03:17:00', NULL, '192.93', '52.15', '6', 'AIR002', 'A0006');
+INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '17/09/2024 03:17:00', NULL, '192.93', '52.15', '6', 'AIR002', 'A0006');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '18/09/2024 00:03:00', NULL, '139.13', '95.27', '4', 'AIR007', 'A0007');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '19/09/2024 08:54:00', NULL, '133.85', '106.25', '8', 'AIR009', 'A0008');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '21/09/2024 13:15:00', NULL, '122.5', '74.52', '7', 'AIR006', 'A0009');
@@ -3569,7 +3614,7 @@ INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, Ad
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '30/10/2024 12:10:00', NULL, '127.94', '114.8', '5', 'AIR005', 'A0005');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '31/10/2024 02:16:00', NULL, '173.34', '67.53', '8', 'AIR002', 'A0002');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '31/10/2024 12:56:00', NULL, '186.4', '76.86', '2', 'AIR007', 'A0008');
-INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '31/10/2024 13:44:00', NULL, '191.96', '90.73', '5', 'AIR007', 'A0009');
+INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '31/10/2024 18:44:00', NULL, '191.96', '90.73', '5', 'AIR007', 'A0009');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '01/11/2024 08:23:00', NULL, '173', '93.45', '5', 'AIR001', 'A0010');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '02/11/2024 10:43:00', NULL, '198.12', '100.81', '2', 'AIR007', 'A0008');
 INSERT INTO FlightSchedule (FlightScheduleID, DepartDateTime, ArriveDateTime, AdultPrice, ChildPrice, FlightDuration, AirplaneID, AirportID) VALUES ('FS' || TO_CHAR(flightSchedule_seq.nextval, 'FM0000'), '03/11/2024 04:38:00', NULL, '165.98', '107.97', '3', 'AIR001', 'A0008');
@@ -6855,6 +6900,19 @@ INSERT INTO StaffSchedule (FlightScheduleID, StaffID, WorkingHours, CheckIn, Che
 INSERT INTO StaffSchedule (FlightScheduleID, StaffID, WorkingHours, CheckIn, CheckOut) VALUES ('FS0244', 'S0014', '2', '13/3/2025 3:06', '13/3/2025 5:06');
 INSERT INTO StaffSchedule (FlightScheduleID, StaffID, WorkingHours, CheckIn, CheckOut) VALUES ('FS0244', 'S0013', '2', '6/12/2024 13:06', '6/12/2024 15:06');
 INSERT INTO StaffSchedule (FlightScheduleID, StaffID, WorkingHours, CheckIn, CheckOut) VALUES ('FS0244', 'S0005', '8', '17/2/2025 15:08', '17/2/2025 23:08');
+
+------- Janice -------
+
+CREATE OR REPLACE TRIGGER trg_prevent_past_flight
+BEFORE INSERT OR UPDATE ON FlightSchedule
+FOR EACH ROW
+BEGIN
+    IF :NEW.DepartDateTime < SYSDATE THEN
+        RAISE_APPLICATION_ERROR(-20000, 'Cannot schedule a flight in the past.');
+    END IF;
+END trg_prevent_past_flight;
+/
+
 
 commit;
 
